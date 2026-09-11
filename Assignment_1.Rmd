@@ -1,0 +1,91 @@
+---
+title: "Assignment 1:Iris"
+author: "William Zou"
+date: "2026-09-11"
+output: html_document
+---
+
+## 1. Import Data
+
+Dataset is imported into R and given descriptive names
+
+```{r}
+# Data imported
+data <- read.csv("iris.data", header = FALSE)
+
+# Naming VAR
+names(data) <- c("SepalLength", "SepalWidth", "PetalLength", "PetalWidth", "Species")
+
+# Showing the first 5 rows
+head(data, 5)
+```
+
+## 2. Descriptive Statistics
+
+Summary of descriptive statistics for the VAR
+
+```{r}
+summary(data$SepalLength)
+summary(data$SepalWidth)
+summary(data$PetalLength)
+summary(data$PetalWidth)
+summary(data$Species)
+```
+Shows number of observations for each species of iris
+```{r}
+table(data$Species)
+```
+
+## 3. VAR Transformation
+
+"Species" VAR is turned into a categorical factor
+```{r}
+
+data$Species <- as.factor(data$Species)
+
+data$Species
+
+```
+## 4. Histogram
+
+Histogram shows the distribution of Sepal Length in the observation
+```{r}
+hist(data$SepalLength,
+     main = "Distri. of Sepal Length",
+     xlab = "Sepal Length")
+```
+
+## 5. Scatterplot
+
+Scatterplot shows relationship between Sepal Width and Petal Width
+```{r}
+plot(data$SepalWidth,
+     data$PetalWidth,
+     main = "Sepal Width vs. Petal Width",
+     xlab = "Sepal Width",
+     ylab = "Petal Width")
+```
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+summary(cars)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
