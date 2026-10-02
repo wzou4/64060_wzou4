@@ -1,0 +1,322 @@
+---
+title: "Assignment 2"
+author: "William Zou"
+date: "2026-09-28"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+summary(cars)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+##1. Load and verify the data 
+```{r}
+bank <- read.csv("UniversalBank.csv")
+
+bank
+
+summary(bank)
+
+table(bank$Personal.Loan)
+```
+
+##2. Remove ID and ZIP Code as predictors as instructed
+##new data frame
+```{r}
+bank2 <- bank[,!(names(bank) %in% c("ID","ZIP.Code"))]
+
+##check whether the predictors are properly removed
+names(bank2)
+```
+
+##3. Transform categorical preditor(s) with more than 2 categories into dummy VARs
+##Namely "Educ" in the data frame has 3 distinct categories
+```{r}
+bank2$Education <- factor(bank2$Education)
+
+bank2 <- cbind(
+  bank2[, !(names(bank2) %in% "Education")],
+  model.matrix(~ Education - 1, data = bank2)
+  )
+
+##Verify VARs
+names(bank2)
+##Newly added: Educ1, Educ2, Educ3
+```
+
+##4. Separate the predictors and the intended target
+##Only want to know the output of loan approval - VAR = Personal.Loan
+```{r}
+x <- bank2[, names(bank2) !="Personal.Loan"]
+y <- bank2$Personal.Loan
+## x = predictors; y = target/output
+```
+
+##5. Load KNN package
+```{r}
+library(class)
+```
+
+##6. Partition the data frame into 60% 'Training' & 40% 'Validation'
+```{r}
+##standardize the predictors, so everything is weighted equally in the model
+x_scaled <- scale(x)
+
+##60/40 split
+##set seed so the random split is reproducible for the model, no fluctuation
+library(caret)
+
+set.seed(123)
+
+train_index <- createDataPartition(y, p = 0.60, list = F)
+
+x_train <- x_scaled[train_index, ]
+x_valid <- x_scaled[-train_index, ]
+
+y_train <- y[train_index]
+y_valid <- y[-train_index]
+
+##check whether the split is done properly; 5000 obs 3000(60)/2000(40) 
+nrow(x_train)
+nrow(x_valid)
+```
+
+##7. Consider the following customer
+##Specify new customer parameter
+```{r}
+new_customer <- data.frame(
+  Age = 40,
+  Experience = 10,
+  Income = 84,
+  Family = 2,
+  CCAvg = 2,
+  Mortgage = 0,
+  Securities.Account = 0,
+  CD.Account = 0,
+  Online = 1,
+  CreditCard = 1,
+  Education1 = 0,
+  Education2 = 1,
+  Education3 = 0
+)
+
+##scale new_customer, so it fits into scaled predictors
+new_customer_scaled <- scale(
+  new_customer,
+  center = attr(x_scaled, "scaled:center"),
+  scale = attr(x_scaled, "scaled:scale")
+)
+
+customer_pred <- knn(
+  train = x_train,
+  test = new_customer_scaled,
+  cl = factor(y_train),
+  k = 1
+)
+
+##verify prediction
+customer_pred
+```
+
+##8. Find K-value that balances between overfitting and ignoring predictor info
+##Most fitting/best K-value
+```{r}
+##test different k-values, from 1 to 50
+k_values <- 1:50
+
+accuracy <- numeric(length(k_values))
+
+for (i in seq_along(k_values)) {
+  pred <- knn(
+    train = x_train,
+    test = x_valid,
+    cl = factor(y_train),
+    k = k_values[i]
+  )
+
+##compare predictions with validation results  
+  accuracy[i] <- mean(pred == factor(y_valid))
+}
+
+##table for each k-value and corresponding validation accuracy
+k_results <- data.frame(
+  k = k_values,
+  Accuracy = accuracy
+)
+
+k_results
+
+##find the best k-value
+k_best <- k_results$k[which.max(k_results$Accuracy)]
+
+k_best
+
+##visual for better comparison
+plot(
+  k_results$k,
+  k_results$Accuracy,
+  type = "b",
+  xlab = "k",
+  ylab = "Validation Accuracy",
+  main = "k-NN: Validation Accuracy"
+)
+```
+
+##9. Confusion matrix
+```{r}
+pred_best <- knn(
+  train = x_train,
+  test = x_valid,
+  cl = factor(y_train),
+  k = k_best
+)
+
+confusion_valid <- table(
+  Actual = y_valid,
+  Predicted = pred_best
+)
+
+confusion_valid
+```
+
+##10. Check accuracy of the matrix
+```{r}
+mean(pred_best == factor(y_valid))
+```
+
+
+##11. Classify customer using the best k-value
+```{r}
+customer_best <- knn(
+  train = x_train,
+  test = new_customer_scaled,
+  cl = factor(y_train),
+  k = k_best
+)
+
+customer_best
+
+##R should return either 0 or 1; 0 being 'not accepting loan', 1 being ' accepting loan'
+```
+
+##12. Repartition the data into 'Training', 'Validation', 'Test'
+```{r}
+##set seed so random split is reproducible for the new model
+set.seed(123)
+
+##first splitting data into 50% training and 50% pending for partition: validation (30); testing (20)
+train_index2 <- createDataPartition(y, p = 0.50, list = F)
+
+x_train2 <- x_scaled[train_index2, ]
+X_remaining2 <- x_scaled[-train_index2, ]
+
+y_train2 <- y[train_index2]
+y_remaining2 <- y[-train_index2]
+
+validation_index2 <- createDataPartition(y_remaining2, p = 0.60, list = F)
+
+x_valid2 <- X_remaining2[validation_index2, ]
+x_test2 <- X_remaining2[-validation_index2, ]
+
+y_valid2 <- y_remaining2[validation_index2]
+y_test2 <- y_remaining2[-validation_index2]
+
+##verify whether the data is properly divided
+##50% of 5000 = 2500
+nrow(x_train2)
+##30% of 5K = 1500
+nrow(x_valid2)
+##20% of 5K = 1000
+nrow(x_test2)
+```
+
+##13. Apply KNN method with best k-value(k_best)
+```{r}
+pred_train2 <- knn(
+  train = x_train2,
+  test = x_train2,
+  cl = factor(y_train2),
+  k = k_best
+)
+
+pred_valid2 <- knn(
+  train = x_train2,
+  test = x_valid2,
+  cl = factor(y_train2),
+  k = k_best
+)
+
+pred_test2 <- knn(
+  train = x_train2,
+  test = x_test2,
+  cl = factor(y_train2),
+  k = k_best
+)
+
+pred_train2
+pred_valid2
+pred_test2
+```
+
+##14. Confusion matrix for the datasets
+```{r}
+con_train <- table(
+  Actual = y_train2,
+  Predicted = pred_train2
+)
+
+con_train
+
+con_valid <- table(
+  Actual = y_valid2,
+  Predicted = pred_valid2
+)
+
+con_valid
+
+con_test <- table(
+  Actual = y_test2,
+  Predicted = pred_test2
+)
+
+con_test
+```
+
+##15. Check accuracy of the matrix 
+```{r}
+accuracy_train <- mean(pred_train2 == factor(y_train2))
+
+accuracy_valid <- mean(pred_valid2 == factor(y_valid2))
+
+accuracy_test <- mean(pred_test2 == factor(y_test2))
+
+accuracy_comparison <- c(
+  Training = accuracy_train,
+  Validation = accuracy_valid,
+  Test = accuracy_test
+)
+
+accuracy_comparison
+```
+
+##The 'Training' accuracy is 100%, while 'Validation' accuracy is 95.7% and 'Test' accuracy were is 96.4%. The higher accuracy in 'Training' is expected because the model is trained on the given observations, whereas 'Validation' and 'Test' are lower because they contain observations that the model is not trained on these observations. The difference between 'Training' and 'Validation'/'Test' suggests some overfitting; however, given how similar the 'Validation' accuracy is to the 'Test' accuracy, the overfitting issue is not severe and the model generalizes well to unseen data.
